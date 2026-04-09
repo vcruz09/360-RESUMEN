@@ -38,7 +38,7 @@ let pool;
 async function connectDB() {
   try {
     pool = await sql.connect(config);
-    console.log('✅ Conectado exitosamente a Azure SQL Database (db360)');
+    console.log('✅ Conectado exitosamente a Azure SQL Database (DB_APP)');
     console.log(`   Servidor: ${config.server}`);
     console.log(`   Base de datos: ${config.database}`);
   } catch (err) {
@@ -55,6 +55,9 @@ await connectDB();
 // Normaliza texto: quita tildes, minúsculas, trim
 const normalize = (s = '') =>
   s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+
+const findColumn = (cols, ...names) =>
+  cols.find(c => names.some(name => normalize(c) === normalize(name)));
 
 // Error seguro
 function getErrorMessage(err) {
@@ -198,6 +201,7 @@ app.get('/api/datos/:tabla', async (req, res) => {
       `);
 
     const colNames = cols.recordset.map(r => r.COLUMN_NAME);
+    const nivelCol = findColumn(colNames, 'Nivel Académico');
     const hasAnyo = colNames.some(c => c.toLowerCase() === 'año' || c.toLowerCase() === 'ano');
     const orderByClause = hasAnyo ? 'ORDER BY [Año] DESC' : `ORDER BY [${cols.recordset[0]?.COLUMN_NAME || '1'}]`;
 
@@ -226,10 +230,10 @@ app.get('/api/datos/:tabla', async (req, res) => {
     }
 
     // Niveles
-    if (nivelesCSV) {
+    if (nivelesCSV && nivelCol) {
       reqData.input('niv', sql.NVarChar, nivelesCSV);
       reqCount.input('niv', sql.NVarChar, nivelesCSV);
-      where.push(`[Nivel] COLLATE ${AI} IN (
+      where.push(`[${nivelCol}] COLLATE ${AI} IN (
         SELECT value COLLATE ${AI} FROM STRING_SPLIT(@niv, ',')
       )`);
     }
@@ -329,6 +333,13 @@ app.post('/api/analytics', async (req, res) => {
     const exists = tables.recordset.some(r => r.TABLE_NAME.toLowerCase() === String(table).toLowerCase());
     if (!exists) return res.status(400).json({ error: `Tabla no encontrada: ${table}` });
 
+    const cols = await pool.request()
+      .input('t', sql.NVarChar, String(table))
+      .query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @t`
+      );
+    const nivelCol = findColumn(cols.recordset.map(r => r.COLUMN_NAME), 'Nivel Académico') || 'Nivel Académico';
+
     const rq = pool.request();
     const where = [];
     where.push(`LOWER(LTRIM(RTRIM(Rectoría))) COLLATE Latin1_General_CI_AI = 'bogota'`);
@@ -349,11 +360,11 @@ app.post('/api/analytics', async (req, res) => {
     }
     if (niveles) {
       rq.input('niv', sql.NVarChar, String(niveles));
-      where.push(`[Nivel] COLLATE ${AI} IN (
+      where.push(`[${nivelCol}] COLLATE ${AI} IN (
         SELECT value COLLATE ${AI} FROM STRING_SPLIT(@niv, ',')
       )`);
     }
-      if (centros) {
+    if (centros) {
     rq.input('cts', sql.NVarChar, String(centros));
     where.push(`[Centro Universitario] COLLATE ${AI} IN (
       SELECT value COLLATE ${AI} FROM STRING_SPLIT(@cts, ',')
@@ -391,7 +402,7 @@ app.post('/api/analytics', async (req, res) => {
       whereVirtual.push(`[Año] BETWEEN 2020 AND 2026`);
     }
     if (niveles) {
-      whereVirtual.push(`[Nivel] COLLATE ${AI} IN (SELECT value COLLATE ${AI} FROM STRING_SPLIT(@niv, ','))`);
+      whereVirtual.push(`[${nivelCol}] COLLATE ${AI} IN (SELECT value COLLATE ${AI} FROM STRING_SPLIT(@niv, ','))`);
     }
     if (centros) {
       whereVirtual.push(`[Centro Universitario] COLLATE ${AI} IN (SELECT value COLLATE ${AI} FROM STRING_SPLIT(@cts, ','))`);
@@ -426,13 +437,13 @@ app.post('/api/analytics', async (req, res) => {
 
       -- 2) Modalidad + Nivel
       SELECT
-        [Nivel] AS nivelAcademico,
+        [${nivelCol}] AS nivelAcademico,
         Modalidad AS categoria,
         SUM([Estudiantes Nuevos])    AS nuevos,
         SUM([Estudiantes Continuos]) AS continuos,
         SUM([Estudiantes Totales])   AS totales
       FROM [${table}] ${whereSql}
-      GROUP BY [Nivel], Modalidad
+      GROUP BY [${nivelCol}], Modalidad
       ORDER BY nivelAcademico, totales DESC;
 
       -- 3) Tendencia por Año (línea), restringida a 2020–2026 por definición
@@ -488,12 +499,12 @@ app.post('/api/analytics', async (req, res) => {
       -- 7) Virtuales (INDEPENDIENTE: sin filtro de modalidad)
 WITH Base AS (
   SELECT
-    [Nivel] AS nivelAcademico,
+    [${nivelCol}] AS nivelAcademico,
     SUM([Estudiantes Nuevos])    AS nuevos,
     SUM([Estudiantes Continuos]) AS continuos
   FROM [${table}]
   ${whereVirtualSql}
-  GROUP BY [Nivel]
+  GROUP BY [${nivelCol}]
 )
 
 SELECT
