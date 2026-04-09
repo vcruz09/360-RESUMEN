@@ -1,7 +1,7 @@
 {
   "name": "azure-sql-backend",
   "version": "1.0.0",
-  "description": "Backend API para conectar a Azure SQL Database db360",
+  "description": "Backend API para conectar a Azure SQL Database DB_APP",
   "main": "server.js",
   "type": "module",
   "scripts": {
