@@ -36,7 +36,7 @@ const API_URL =
   (typeof import.meta !== "undefined" &&
     (import.meta as any).env &&
     (import.meta as any).env.VITE_API_URL) ||
-  "https://three60-resumen-backend.onrender.com";
+  "http://localhost:3001";
 
 const TABLE = encodeURIComponent("Poblacion Estudiantil");
 
@@ -64,7 +64,7 @@ const mapRow = (item: any, index: number): DataItem => ({
   id: index,
   fecha: String(item["Año"] ?? ""),
   categoria: String(item["Modalidad"] ?? ""),
-  nivelAcademico: String(item["Nivel"] ?? ""),
+  nivelAcademico: String(item["Nivel Académico"] ?? item["Nivel"] ?? ""),
   rectoria: item["Rectoría"] ?? "",
   ceco: item["CECO"] ?? "",
   snies: item["SNIES"] ?? "",
