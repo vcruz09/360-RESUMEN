@@ -1,19 +1,20 @@
 // src/services/azureService.ts
+
 export interface DataItem {
   id: number;
   fecha: string;
-  categoria: string;   // Modalidad
-  nivelAcademico: string;      // Nivel
+  categoria: string;
+  nivelAcademico: string;
   rectoria?: string;
   ceco?: string;
   snies?: string;
-  centro?: string;               // Centro Universitario
+  centro?: string;
   sede?: string;
   centroOperacion?: string;
   facultad?: string;
   abreviatura?: string;
   siglasPrograma?: string;
-  programa?: string;             // Programa Académico
+  programa?: string;
   periodo?: string;
   periodicidad?: string;
   nuevos?: number;
@@ -23,44 +24,62 @@ export interface DataItem {
 }
 
 export interface FiltersMulti {
-  years?: string[];        // multiselect
+  years?: string[];
   modalidades?: string[];
   niveles?: string[];
-  periodos?: string[];     // S1/S2/Q1/Q2/Q3
+  periodos?: string[];
   centros?: string[];
   page?: number;
   pageSize?: number;
 }
 
+// 🔥 URL dinámica (producción)
 const API_URL =
-  (typeof import.meta !== "undefined" &&
-    (import.meta as any).env &&
-    (import.meta as any).env.VITE_API_URL) ||
+  import.meta.env.VITE_API_URL ||
   "https://three60-resumen-backend.onrender.com";
 
-const TABLE = encodeURIComponent("Poblacion Estudiantil");
+const TABLE = "Poblacion Estudiantil";
 
-// ---- Helpers ----
+// ================= HELPERS =================
+
 const toCsv = (arr?: string[]) =>
-  (arr && arr.length ? arr.map(s => String(s).trim()).filter(Boolean).join(",") : undefined);
+  arr?.length ? arr.map(s => s.trim()).filter(Boolean).join(",") : undefined;
 
 const toCsvUpper = (arr?: string[]) =>
-  (arr && arr.length ? arr.map(s => String(s).trim().toUpperCase()).filter(Boolean).join(",") : undefined);
+  arr?.length
+    ? arr.map(s => s.trim().toUpperCase()).filter(Boolean).join(",")
+    : undefined;
 
 const num = (v: unknown) => {
   if (v === null || v === undefined) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+
   const normalized = String(v)
     .trim()
     .replace(/\./g, "")
     .replace(/,/g, ".");
+
   const n = Number(normalized);
   return Number.isFinite(n) ? n : 0;
 };
 
-// Mapea una fila cruda de SQL a DataItem
-const mapRow = (item: any, index: number): DataItem => ({
+// 🔥 Timeout para evitar cuelgues
+const fetchWithTimeout = async (
+  url: string,
+  options: any = {},
+  timeout = 15000
+) => {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout request")), timeout)
+    ),
+  ]) as Promise<Response>;
+};
 
+// ================= MAP =================
+
+const mapRow = (item: any, index: number): DataItem => ({
   id: index,
   fecha: String(item["Año"] ?? ""),
   categoria: String(item["Modalidad"] ?? ""),
@@ -77,84 +96,68 @@ const mapRow = (item: any, index: number): DataItem => ({
   programa: item["Programa Académico"] ?? "",
   periodo: String(item["Periodo"] ?? ""),
   periodicidad: item["Periodicidad"] ?? "",
-  nuevos: Number(item["Estudiantes Nuevos"] ?? 0),
-  continuos: Number(item["Estudiantes Continuos"] ?? 0),
-  totales: Number(item["Estudiantes Totales"] ?? 0),
-  graduados: Number(item["Graduados"] ?? 0),
+  nuevos: num(item["Estudiantes Nuevos"]),
+  continuos: num(item["Estudiantes Continuos"]),
+  totales: num(item["Estudiantes Totales"]),
+  graduados: num(item["Graduados"]),
 });
 
-// ============ Carga base (para combos) ============
-// Trae 2020–2026 por defecto gracias al backend.
+// ================= FETCH BASE =================
+
 export async function fetchAzureData(): Promise<DataItem[]> {
-  const res = await fetch(
-    `${API_URL}/api/datos/${TABLE}?page=1&pageSize=500000&_ts=${Date.now()}`,
-    { cache: "no-store" }
-  );
-  if (!res.ok) throw new Error("Error al obtener base");
+  const url = `${API_URL}/api/datos/${encodeURIComponent(
+    TABLE
+  )}?page=1&pageSize=500000&_ts=${Date.now()}`;
+
+  const res = await fetchWithTimeout(url, { cache: "no-store" });
+
+  if (!res.ok) throw new Error(`Error base: ${res.status}`);
+
   const payload = await res.json();
-  const raw = Array.isArray(payload) ? payload : (payload?.rows ?? []);
+  const raw = Array.isArray(payload) ? payload : payload?.rows ?? [];
+
   return raw.map(mapRow);
 }
 
-// ============ Tabla (si la usas en otra vista) ============
+// ================= TABLA =================
+
 export async function fetchTableMulti(
   f: FiltersMulti
 ): Promise<{ total: number; rows: DataItem[] }> {
   const qs = new URLSearchParams();
-  const yearsCsv = toCsv(f.years);
-  const modsCsv = toCsv(f.modalidades);
-  const nivCsv = toCsv(f.niveles);
-  const perCsv = toCsvUpper(f.periodos);
-  const cenCsv = toCsv(f.centros);
 
-  if (yearsCsv) qs.set("years", yearsCsv);
-  if (modsCsv) qs.set("modalidades", modsCsv);
-  if (nivCsv) qs.set("niveles", nivCsv);
-  if (perCsv) qs.set("periodos", perCsv);
-  if (cenCsv) qs.set("centros", cenCsv);
+  if (toCsv(f.years)) qs.set("years", toCsv(f.years)!);
+  if (toCsv(f.modalidades)) qs.set("modalidades", toCsv(f.modalidades)!);
+  if (toCsv(f.niveles)) qs.set("niveles", toCsv(f.niveles)!);
+  if (toCsvUpper(f.periodos)) qs.set("periodos", toCsvUpper(f.periodos)!);
+  if (toCsv(f.centros)) qs.set("centros", toCsv(f.centros)!);
 
   qs.set("page", String(f.page ?? 1));
   qs.set("pageSize", String(f.pageSize ?? 20000));
   qs.set("_ts", String(Date.now()));
 
-  const url = `${API_URL}/api/datos/${TABLE}?${qs.toString()}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Error /api/datos: ${res.status}`);
+  const url = `${API_URL}/api/datos/${encodeURIComponent(
+    TABLE
+  )}?${qs.toString()}`;
+
+  const res = await fetchWithTimeout(url, { cache: "no-store" });
+
+  if (!res.ok) throw new Error(`Error tabla: ${res.status}`);
+
   const payload = await res.json();
-  const raw = Array.isArray(payload) ? payload : (payload?.rows ?? []);
-  const total = Array.isArray(payload) ? raw.length : (payload?.total ?? raw.length);
+  const raw = Array.isArray(payload) ? payload : payload?.rows ?? [];
+  const total = Array.isArray(payload)
+    ? raw.length
+    : payload?.total ?? raw.length;
 
   return { total, rows: raw.map(mapRow) };
 }
 
-// ============ Analytics (estudios) con multiselección ============
-export async function fetchAnalyticsMulti(f: FiltersMulti): Promise<{
-  stats: { estudiantes: number; centros: number; modalidades: number; programas: number };
-  modalidadBreakdown: Array<{ nivelAcademico: string; categoria: string; nuevos: number; continuos: number; totales: number }>;
-  trend: Array<{ fecha: string; valor: number }>;
-  ausDes: Array<{ modalidad: string; ausentes: number; pct_ausentes: number; desertores: number; pct_desertores: number }>;
-  byCentro: Array<{
-  categoria: string;
-  nuevos: number;
-  continuos: number;
-  total: number;
-  modalidades?: {
-    modalidad: string;
-    nuevos: number;
-    continuos: number;
-    total: number;
-  }[];
-}>;
-  byEscuela: Array<{
-  centro: string;
-  centroOperacion: string;
-  escuela: string;
-  total: number;
-}>
-  virtual2026S1: Array<{ estado: string; nivelAcademico?: string; Bogota: number; Total: number }>;
-}> {
-  const body: any = {
-    table: "Poblacion Estudiantil",
+// ================= ANALYTICS =================
+
+export async function fetchAnalyticsMulti(f: FiltersMulti) {
+  const body = {
+    table: TABLE,
     years: toCsv(f.years),
     modalidades: toCsv(f.modalidades),
     niveles: toCsv(f.niveles),
@@ -162,7 +165,7 @@ export async function fetchAnalyticsMulti(f: FiltersMulti): Promise<{
     centros: toCsv(f.centros),
   };
 
-  const res = await fetch(`${API_URL}/api/analytics`, {
+  const res = await fetchWithTimeout(`${API_URL}/api/analytics`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -170,24 +173,32 @@ export async function fetchAnalyticsMulti(f: FiltersMulti): Promise<{
 
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`Error /api/analytics: ${res.status} - ${t}`);
+    throw new Error(`Error analytics: ${res.status} - ${t}`);
   }
 
   const j = await res.json();
 
   return {
-    stats: j?.stats ?? { estudiantes: 0, centros: 0, modalidades: 0, programas: 0 },
-modalidadBreakdown: (j?.modalidadBreakdown ?? []).map((d: any) => ({
-  nivelAcademico: String(d.nivelAcademico ?? ""), // 👈 CLAVE
-  categoria: String(d.categoria ?? ""),
-  nuevos: num(d.nuevos),
-  continuos: num(d.continuos),
-  totales: num(d.totales),
-})),
+    stats: j?.stats ?? {
+      estudiantes: 0,
+      centros: 0,
+      modalidades: 0,
+      programas: 0,
+    },
+
+    modalidadBreakdown: (j?.modalidadBreakdown ?? []).map((d: any) => ({
+      nivelAcademico: String(d.nivelAcademico ?? ""),
+      categoria: String(d.categoria ?? ""),
+      nuevos: num(d.nuevos),
+      continuos: num(d.continuos),
+      totales: num(d.totales),
+    })),
+
     trend: (j?.trend ?? []).map((d: any) => ({
       fecha: String(d.fecha ?? ""),
       valor: num(d.valor),
     })),
+
     ausDes: (j?.ausDes ?? []).map((d: any) => ({
       modalidad: String(d.modalidad ?? ""),
       ausentes: num(d.ausentes),
@@ -195,49 +206,49 @@ modalidadBreakdown: (j?.modalidadBreakdown ?? []).map((d: any) => ({
       desertores: num(d.desertores),
       pct_desertores: num(d.pct_desertores),
     })),
+
     byCentro: (j?.byCentro ?? []).map((d: any) => ({
-  categoria: String(d.categoria ?? ""),
-  nuevos: num(d.nuevos),
-  continuos: num(d.continuos),
-  total: num(d.total),
-  operaciones: (d.operaciones ?? []).map((o: any) => ({
-    nombre: String(o.nombre ?? ""),
-    nuevos: num(o.nuevos),
-    continuos: num(o.continuos),
-    total: num(o.total),
-    modalidades: (o.modalidades ?? []).map((m: any) => ({
-      modalidad: String(m.modalidad ?? ""),
-      nuevos: num(m.nuevos),
-      continuos: num(m.continuos),
-      total: num(m.total),
+      categoria: String(d.categoria ?? ""),
+      nuevos: num(d.nuevos),
+      continuos: num(d.continuos),
+      total: num(d.total),
+      operaciones: (d.operaciones ?? []).map((o: any) => ({
+        nombre: String(o.nombre ?? ""),
+        nuevos: num(o.nuevos),
+        continuos: num(o.continuos),
+        total: num(o.total),
+        modalidades: (o.modalidades ?? []).map((m: any) => ({
+          modalidad: String(m.modalidad ?? ""),
+          nuevos: num(m.nuevos),
+          continuos: num(m.continuos),
+          total: num(m.total),
+        })),
+      })),
     })),
-  })),
-})),
-  byEscuela: (j?.byEscuela ?? []).map((d: any) => ({
-  centro: String(d.centro ?? ""),
 
-  // 🔥 FIX ROBUSTO
-  centroOperacion: String(
-    d.centroOperacion ??
-    d["Centro de Operación"] ??
-    d["Centro de Operacion"] ?? // sin tilde
-    d.centro ?? ""
-  ),
+    byEscuela: (j?.byEscuela ?? []).map((d: any) => ({
+      centro: String(d.centro ?? ""),
+      centroOperacion: String(
+        d.centroOperacion ??
+          d["Centro de Operación"] ??
+          d["Centro de Operacion"] ??
+          d.centro ??
+          ""
+      ),
+      escuela: String(d.escuela ?? ""),
+      total: num(d.total),
+    })),
 
-  escuela: String(d.escuela ?? ""),
-  total: num(d.total),
-})),
     virtual2026S1: (j?.virtual2026S1 ?? []).map((d: any) => ({
       estado: String(d.estado ?? ""),
       nivelAcademico: String(
         d.nivelAcademico ??
-        d.nivel ??
-        d.Nivel ??
-        d["Nivel"] ??
-        ""
+          d.nivel ??
+          d["Nivel"] ??
+          ""
       ),
-      Bogota: num(d.Bogota ?? d.valor ?? d.Valor),
-      Total: num(d.Total ?? d.valor ?? d.Valor),
+      Bogota: num(d.Bogota ?? d.valor),
+      Total: num(d.Total ?? d.valor),
     })),
   };
 }
