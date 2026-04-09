@@ -126,7 +126,7 @@ export function BackendSetupGuide() {
 
             <div>
               <span className="text-gray-500">DB:</span>
-              <div className="font-mono">db360</div>
+              <div className="font-mono">DB_APP</div>
             </div>
 
             <div>
@@ -152,7 +152,7 @@ export function BackendSetupGuide() {
           <Code
             id="env"
             code={`AZURE_SQL_SERVER=admindpla.database.windows.net
-AZURE_SQL_DATABASE=db360
+AZURE_SQL_DATABASE=DB_APP
 AZURE_SQL_USER=admindpla2
 AZURE_SQL_PASSWORD=********
 PORT=3001`}
