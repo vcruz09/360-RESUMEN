@@ -51,7 +51,7 @@ export function StatsCards({ data = [] }: StatsCardsProps) {
       bg: "bg-green-50",
     },
     {
-      label: "Niveles",
+      label: "Niveles de Formación",
       value: niveles,
       icon: GraduationCap,
       color: "text-purple-600",
