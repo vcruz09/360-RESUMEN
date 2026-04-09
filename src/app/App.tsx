@@ -45,9 +45,10 @@ useEffect(() => {
 
       // 🔥 NORMALIZADOR GLOBAL
       const normalizeNivel = (nivel: string) => {
-        const n = (nivel || "").toLowerCase();
+        const n = (nivel || "").toString().toLowerCase().trim();
 
         if (
+          n.includes("posgrado") ||
           n.includes("especial") ||
           n.includes("maestr") ||
           n.includes("doctor")
@@ -131,9 +132,10 @@ useEffect(() => {
 
   // Carga de estudios (anti-carrera)
 const normalizeNivel = (nivel: string) => {
-  const n = (nivel || "").toLowerCase();
+  const n = (nivel || "").toString().toLowerCase().trim();
 
   if (
+    n.includes("posgrado") ||
     n.includes("especial") ||
     n.includes("maestr") ||
     n.includes("doctor")
