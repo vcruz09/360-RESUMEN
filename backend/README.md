@@ -1,11 +1,11 @@
-# Backend API - Azure SQL Database (db360)
+# Backend API - Azure SQL Database (DB_APP)
 
 API backend para conectar la aplicación React con Azure SQL Database.
 
 ## 📋 Información de la Base de Datos
 
 - **Servidor**: admindpla.database.windows.net
-- **Base de datos**: db360
+- **Base de datos**: DB_APP
 - **Usuario**: admindpla2
 - **Ubicación**: Brazil South
 - **Firewall**: ✅ Configurado (regla "Abierta")
@@ -34,7 +34,7 @@ npm install
 2. Edita el archivo `.env` y reemplaza `TU_CONTRASEÑA_AQUI` con tu contraseña real de Azure SQL:
    ```
    AZURE_SQL_SERVER=admindpla.database.windows.net
-   AZURE_SQL_DATABASE=db360
+   AZURE_SQL_DATABASE=DB_APP
    AZURE_SQL_USER=admindpla2
    AZURE_SQL_PASSWORD=tu_contraseña_real_aqui
    PORT=3001
