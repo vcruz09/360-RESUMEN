@@ -33,7 +33,7 @@ export function AzureConnectionGuide() {
 
             <div>
               <span className="text-gray-500">Database</span>
-              <div className="font-mono">db360</div>
+              <div className="font-mono">DB_APP</div>
             </div>
 
             <div>
@@ -78,7 +78,7 @@ export function AzureConnectionGuide() {
 
           <CodeBlock
             code={`AZURE_SQL_SERVER=...
-AZURE_SQL_DATABASE=db360
+AZURE_SQL_DATABASE=DB_APP
 AZURE_SQL_USER=USER
 AZURE_SQL_PASSWORD=PASS
 PORT=3001`}
@@ -112,7 +112,7 @@ GET /api/datos/agregados`}
           <h3 className="font-semibold text-gray-700">Connection</h3>
 
           <CodeBlock
-            code={`Server=tcp:admindpla.database.windows.net;Database=db360;User ID=USER;Password=PASS;Encrypt=True;`}
+            code={`Server=tcp:admindpla.database.windows.net;Database=DB_APP;User ID=USER;Password=PASS;Encrypt=True;`}
           />
         </div>
       </div>
